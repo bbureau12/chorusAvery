@@ -1,4 +1,22 @@
-*.pyc
+# Python environments
+env/
+.venv/
 __pycache__/
-.env
+*.pyc
+
+# BirdNET model files (they're large + not yours to distribute)
+BirdNET-Analyzer/BirdNET_GLOBAL_MODEL/
+
+# Output & logs
+/data/*.csv
+/outputs/
+*.log
+
+# OS and editor junk
 .DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Notebooks checkpoints (if used)
+.ipynb_checkpoints/
