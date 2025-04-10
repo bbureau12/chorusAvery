@@ -20,3 +20,6 @@ Thumbs.db
 
 # Notebooks checkpoints (if used)
 .ipynb_checkpoints/
+
+# Recording data
+/recordings
