@@ -1,6 +1,7 @@
 import os
 import subprocess
 import csv
+import uuid
 from pathlib import Path
 from pydub import AudioSegment
 
@@ -9,7 +10,6 @@ INPUT_DIR = Path(__file__).resolve().parent.parent / "recordings" / "raw"
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "data"
 CHUNKS_DIR = INPUT_DIR / "chunks"
 CHUNK_DURATION_MS = 60 * 1000  # 1 minute
-FINAL_CSV = OUTPUT_DIR / "detections.csv"
 
 # Ensure output dirs exist
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -29,27 +29,24 @@ def split_wav(file_path):
     return chunks
 
 def run_birdnet(file_path):
-    print(f"🎧 Analyzing: {file_path.name}")
+    print(f"🎷 Analyzing: {file_path.name}")
     cmd = [
         "python", "-m", "birdnet_analyzer.analyze",
         str(file_path),
         "--lat", "45.4",
         "--lon", "-93.0",
-        "--week", "16"
+        "--week", "16"  # This will be replaced dynamically
     ]
     subprocess.run(cmd, check=True)
 
 def merge_results(chunk_path, chunk_index, original_file):
     offset_seconds = (CHUNK_DURATION_MS // 1000) * chunk_index
-
-    # Look for any file starting with chunk name and ending in .txt
     matching = list(chunk_path.parent.glob(f"{chunk_path.stem}*.txt"))
     if not matching:
         print(f"⚠️ Missing result for chunk: {chunk_path.name}")
         return []
 
-    result_file = matching[0]  # Assume the first match is the correct result
-
+    result_file = matching[0]
     detections = []
     with result_file.open("r", encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter="\t")
@@ -68,34 +65,36 @@ def merge_results(chunk_path, chunk_index, original_file):
                 continue
     return detections
 
-
-def write_merged_csv(all_detections):
-    if not all_detections:
-        print("🚫 No detections to write.")
-        return
-
-    print(f"📝 Writing {len(all_detections)} detections to {FINAL_CSV.name}")
-    with FINAL_CSV.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=[
-            "original_file", "adjusted_start_time", "duration",
-            "confidence", "common_name", "species_code"
-        ])
-
-        writer.writeheader()
-        writer.writerows(all_detections)
-
 def run_batch_analysis():
     print(f"🔍 Scanning for WAV files in: {INPUT_DIR}")
-    all_detections = []
+    wav_files = list(INPUT_DIR.glob("*.wav"))
 
-    for file in INPUT_DIR.glob("*.wav"):
+    for file in wav_files:
+        print(f"📁 Processing {file.name}")
+        all_detections = []
         chunks = split_wav(file)
         for chunk_path, chunk_index in chunks:
             run_birdnet(chunk_path)
             detections = merge_results(chunk_path, chunk_index, file)
             all_detections.extend(detections)
 
-    write_merged_csv(all_detections)
+        if all_detections:
+            date_part = file.name[:6]  # Assumes format yymmdd_....
+            final_path = OUTPUT_DIR / f"{date_part}_results.csv"
+
+            if final_path.exists():
+                unique_id = str(uuid.uuid4())[:8]
+                final_path = OUTPUT_DIR / f"{date_part}_results_{unique_id}.csv"
+
+            print(f"📂 Writing {len(all_detections)} detections to {final_path.name}")
+            with final_path.open("w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=[
+                    "original_file", "adjusted_start_time", "duration",
+                    "confidence", "common_name", "species_code"
+                ])
+                writer.writeheader()
+                writer.writerows(all_detections)
+
     print("✅ All done!")
 
 if __name__ == "__main__":
