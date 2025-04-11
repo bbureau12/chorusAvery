@@ -23,3 +23,8 @@ Thumbs.db
 
 # Recording data
 /recordings
+
+#database
+/db
+chorusAvery.db
+BirdNET-Analyzer
