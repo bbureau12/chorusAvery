@@ -4,7 +4,8 @@ import csv
 import uuid
 from pathlib import Path
 from pydub import AudioSegment
-
+from utils import load_detections_from_csv
+from utils.location_selector import choose_location
 # Configuration
 INPUT_DIR = Path(__file__).resolve().parent.parent / "recordings" / "raw"
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -39,7 +40,7 @@ def run_birdnet(file_path):
     ]
     subprocess.run(cmd, check=True)
 
-def merge_results(chunk_path, chunk_index, original_file):
+def merge_results(chunk_path, chunk_index, original_file, location_id):
     offset_seconds = (CHUNK_DURATION_MS // 1000) * chunk_index
     matching = list(chunk_path.parent.glob(f"{chunk_path.stem}*.txt"))
     if not matching:
@@ -66,6 +67,12 @@ def merge_results(chunk_path, chunk_index, original_file):
     return detections
 
 def run_batch_analysis():
+    location = choose_location()
+    if not location:
+        print("❌ No location selected. Exiting.")
+        return
+    location_id = location["id"]
+    print(f"📍 Using location: {location['name']} (ID: {location_id})")
     print(f"🔍 Scanning for WAV files in: {INPUT_DIR}")
     wav_files = list(INPUT_DIR.glob("*.wav"))
 
@@ -75,7 +82,7 @@ def run_batch_analysis():
         chunks = split_wav(file)
         for chunk_path, chunk_index in chunks:
             run_birdnet(chunk_path)
-            detections = merge_results(chunk_path, chunk_index, file)
+            detections = merge_results(chunk_path, chunk_index, file, location_id)
             all_detections.extend(detections)
 
         if all_detections:
@@ -94,6 +101,7 @@ def run_batch_analysis():
                 ])
                 writer.writeheader()
                 writer.writerows(all_detections)
+            load_detections_from_csv(final_path, location_id)
 
     print("✅ All done!")
 
