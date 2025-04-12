@@ -1,11 +1,14 @@
 import os
 import subprocess
 import csv
+import sys
 import uuid
 from pathlib import Path
 from pydub import AudioSegment
-from utils import load_detections_from_csv
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+from utils.load_detections_from_csv import load_detections_from_csv
 from utils.location_selector import choose_location
+from utils.split_wav import split_wav
 # Configuration
 INPUT_DIR = Path(__file__).resolve().parent.parent / "recordings" / "raw"
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -15,19 +18,6 @@ CHUNK_DURATION_MS = 60 * 1000  # 1 minute
 # Ensure output dirs exist
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 CHUNKS_DIR.mkdir(parents=True, exist_ok=True)
-
-def split_wav(file_path):
-    print(f"🔪 Splitting: {file_path.name}")
-    audio = AudioSegment.from_wav(file_path)
-    chunks = []
-    for i, start in enumerate(range(0, len(audio), CHUNK_DURATION_MS)):
-        chunk = audio[start:start + CHUNK_DURATION_MS]
-        chunk_name = f"{file_path.stem}_chunk{i:03d}.wav"
-        chunk_path = CHUNKS_DIR / chunk_name
-        chunk.export(chunk_path, format="wav")
-        chunks.append((chunk_path, i))
-    print(f"🧩 Created {len(chunks)} chunks.\n")
-    return chunks
 
 def run_birdnet(file_path):
     print(f"🎷 Analyzing: {file_path.name}")
@@ -54,14 +44,16 @@ def merge_results(chunk_path, chunk_index, original_file, location_id):
         for row in reader:
             try:
                 adjusted_start = float(row["Begin Time (s)"]) + offset_seconds
-                detections.append({
-                    "original_file": original_file.name,
-                    "adjusted_start_time": adjusted_start,
-                    "duration": float(row["End Time (s)"]) - float(row["Begin Time (s)"]),
-                    "confidence": row.get("Confidence", ""),
-                    "common_name": row.get("Common Name", ""),
-                    "species_code": row.get("Species Code", "")
-                })
+                confidence = float(row.get("Confidence", 0))
+                if confidence >= 0.6:
+                    detections.append({
+                        "original_file": original_file.name,
+                        "adjusted_start_time": adjusted_start,
+                        "duration": float(row["End Time (s)"]) - float(row["Begin Time (s)"]),
+                        "confidence": confidence,
+                        "common_name": row.get("Common Name", ""),
+                        "species_code": row.get("Species Code", "")
+                    })
             except (KeyError, ValueError):
                 continue
     return detections
