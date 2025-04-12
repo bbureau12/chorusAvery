@@ -1,7 +1,7 @@
 from pathlib import Path
 import sqlite3
 
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "chorusAvery.db"
+DB_PATH = Path(__file__).resolve().parent.parent / "db" / "chorusAvery.db"
 
 def choose_location():
     conn = sqlite3.connect(DB_PATH)
@@ -23,7 +23,12 @@ def choose_location():
         try:
             selected_id = int(input("\n🔧 Enter the ID of the location to use for this batch: "))
             if any(loc[0] == selected_id for loc in locations):
-                selected = selected_id
+                        selected = {
+                            "id": loc[0],
+                            "name": loc[1],
+                            "latitude": loc[2],
+                            "longitude": loc[3]
+                        }
             else:
                 print("❌ Invalid ID. Please choose from the list above.")
         except ValueError:
