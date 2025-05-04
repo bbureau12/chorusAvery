@@ -31,8 +31,13 @@ def play_clip(file_path):
 def search_items(query, items):
     query = query.lower()
     return [(id_, name) for id_, name in items if query in name.lower()]
-
 def label_clip(clip_name, labels, names):
+    # Skip if already in DB
+    cursor.execute("SELECT id FROM Clips WHERE clip_path = ?", (clip_name,))
+    if cursor.fetchone():
+        print(f"⏭️  Skipping {clip_name} — already labeled.")
+        return labels, names
+
     print(f"\n🎵 Now labeling: {clip_name}")
     full_path = os.path.join(clips_folder, clip_name)
     play_clip(full_path)
@@ -85,7 +90,6 @@ def label_clip(clip_name, labels, names):
 
     conn.commit()
     print(f"✅ Labels saved for {clip_name}!\n")
-
     return labels, names
 
 # MAIN

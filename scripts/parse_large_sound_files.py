@@ -2,8 +2,8 @@ import os
 from pydub import AudioSegment
 
 # SETTINGS
-input_folder = './recordings/raw'
-output_folder = './recordings/raw/chunks'
+input_folder = './recordings/chunks'
+output_folder = './recordings/clips'
 chunk_length_ms = 5 * 60 * 1000  # 5 minutes
 
 os.makedirs(output_folder, exist_ok=True)
