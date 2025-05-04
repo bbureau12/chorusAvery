@@ -50,7 +50,32 @@ def label_clip(clip_name, labels, names):
 
     if not labels:
         while True:
-            search = input("Type to search species or sounds (ENTER to finish): ").strip()
+            search = input("Type to search species or sounds (or '/' to split, ENTER to finish): ").strip()
+
+            # Split logic: If user types '/', return control to main to split
+            # Possible enhancement: split by second
+            if search == '/':
+                sound = AudioSegment.from_file(full_path)
+                midpoint = len(sound) // 2
+                first_half = sound[:midpoint]
+                second_half = sound[midpoint:]
+
+                base, ext = os.path.splitext(clip_name)
+                clip1_name = f"{base}_1.wav"
+                clip2_name = f"{base}_2.wav"
+
+                clip1_path = os.path.join(clips_folder, clip1_name)
+                clip2_path = os.path.join(clips_folder, clip2_name)
+
+                first_half.export(clip1_path, format="wav")
+                second_half.export(clip2_path, format="wav")
+
+                os.remove(full_path)
+                print(f"✂️ Split and saved: {clip1_name}, {clip2_name}. Removed original.")
+
+                return 'split', [clip1_name, clip2_name]
+
+            # Normal labeling
             if not search:
                 break
 
@@ -69,6 +94,7 @@ def label_clip(clip_name, labels, names):
                     print(f"⚠️ Invalid selection: {e}")
             else:
                 print("No matches found.")
+
 
     # Save to database
     cursor.execute("""
@@ -99,8 +125,20 @@ clips = sorted([f for f in os.listdir(clips_folder) if f.endswith('.wav')])
 labels = []
 names = []
 
-for clip in clips:
-    labels, names = label_clip(clip, labels, names)
+i = 0
+while i < len(clips):
+    clip = clips[i]
+    result = label_clip(clip, labels, names)
+
+    if isinstance(result, tuple) and result[0] == 'split':
+        # Insert new clips at the current position, replacing the old one
+        clips.pop(i)
+        for new_clip in reversed(result[1]):
+            clips.insert(i, new_clip)
+        # Do not increment i — the first new clip will be processed next
+    else:
+        i += 1
+
 
 
 conn.close()
