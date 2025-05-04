@@ -4,7 +4,7 @@ import math
 import matplotlib.pyplot as plt
 
 # Settings
-input_folder = './recordings/raw'
+input_folder = './recordings/chunks'
 output_folder = './recordings/clips'
 plot_folder = './recordings/plots'   # For optional plots
 chunk_size_ms = 5000  # 5 seconds
@@ -45,7 +45,7 @@ def slice_audio_dynamic_threshold(file_path):
             clip = sound[current_start:end]
             if len(clip) >= min_clip_ms:
                 output_name = os.path.join(output_folder, f"{base_name}_{clip_index}.wav")
-                clip.export(output_name, format="wav")
+                clip.export(output_name, format="wav", parameters=["-acodec", "pcm_s16le"])
                 print(f"✅ Saved clip: {output_name} ({len(clip)} ms)")
                 clip_index += 1
                 clip_times.append((current_start, end))
