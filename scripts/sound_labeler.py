@@ -31,11 +31,11 @@ def play_clip(file_path):
 def search_items(query, items):
     query = query.lower()
     return [(id_, name) for id_, name in items if query in name.lower()]
+
 def label_clip(clip_name, labels, names):
-    # Skip if already in DB
     cursor.execute("SELECT id FROM Clips WHERE clip_path = ?", (clip_name,))
     if cursor.fetchone():
-        print(f"⏭️  Skipping {clip_name} — already labeled.")
+        print(f"\u23ed\ufe0f  Skipping {clip_name} — already labeled.")
         return labels, names
 
     print(f"\n🎵 Now labeling: {clip_name}")
@@ -50,10 +50,17 @@ def label_clip(clip_name, labels, names):
 
     if not labels:
         while True:
-            search = input("Type to search species or sounds (or '/' to split, ENTER to finish): ").strip()
+            search = input("Type to search species or sounds (or '/' to split, '+' to amplify, '-' to reduce, '!' to replay, '*' to delete, ENTER to finish): ").strip()
 
-            # Split logic: If user types '/', return control to main to split
-            # Possible enhancement: split by second
+            if search == '!':
+                play_clip(full_path)
+                continue
+
+            if search == '*':
+                os.remove(full_path)
+                print(f"🗑️ Deleted {clip_name}.")
+                return labels, names
+
             if search == '/':
                 sound = AudioSegment.from_file(full_path)
                 midpoint = len(sound) // 2
@@ -72,10 +79,22 @@ def label_clip(clip_name, labels, names):
 
                 os.remove(full_path)
                 print(f"✂️ Split and saved: {clip1_name}, {clip2_name}. Removed original.")
-
                 return 'split', [clip1_name, clip2_name]
 
-            # Normal labeling
+            if search == '+':
+                sound = AudioSegment.from_file(full_path)
+                amplified = sound + 5  # Boost volume by 5dB
+                amplified.export(full_path, format="wav")
+                print(f"🌟 Amplified {clip_name} by +5dB.")
+                continue
+
+            if search == '-':
+                sound = AudioSegment.from_file(full_path)
+                quieter = sound - 5  # Reduce volume by 5dB
+                quieter.export(full_path, format="wav")
+                print(f"🔇 Reduced {clip_name} by -5dB.")
+                continue
+
             if not search:
                 break
 
@@ -95,8 +114,6 @@ def label_clip(clip_name, labels, names):
             else:
                 print("No matches found.")
 
-
-    # Save to database
     cursor.execute("""
         INSERT INTO Clips (clip_path, start_time, end_time)
         VALUES (?, 0, 0)
@@ -131,15 +148,11 @@ while i < len(clips):
     result = label_clip(clip, labels, names)
 
     if isinstance(result, tuple) and result[0] == 'split':
-        # Insert new clips at the current position, replacing the old one
         clips.pop(i)
         for new_clip in reversed(result[1]):
             clips.insert(i, new_clip)
-        # Do not increment i — the first new clip will be processed next
     else:
         i += 1
 
-
-
 conn.close()
-print("\n🏁 All clips labeled!")
+print("\n🏋️ All clips labeled!")
