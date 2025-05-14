@@ -43,7 +43,7 @@ def slice_audio_dynamic_threshold(file_path):
                 end += chunk_size_ms
 
             clip = sound[current_start:end]
-            if len(clip) >= min_clip_ms:
+            if len(clip) >= min_clip_ms and clip.max_dBFS > -45:
                 output_name = os.path.join(output_folder, f"{base_name}_{clip_index}.wav")
                 clip.export(output_name, format="wav", parameters=["-acodec", "pcm_s16le"])
                 print(f"✅ Saved clip: {output_name} ({len(clip)} ms)")
