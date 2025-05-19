@@ -28,3 +28,6 @@ Thumbs.db
 /db
 chorusAvery.db
 BirdNET-Analyzer
+
+#training data
+/training
