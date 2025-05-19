@@ -10,7 +10,7 @@ plot_folder = './recordings/plots'   # For optional plots
 chunk_size_ms = 5000  # 5 seconds
 min_clip_ms = 500     # Minimum clip size to save (0.5s)
 silence_thresh_relative = -14  # dB adjustment relative to window loudness
-save_plots = True     # <- Toggle plotting
+save_plots = False     # <- Toggle plotting
 
 os.makedirs(output_folder, exist_ok=True)
 if save_plots:
