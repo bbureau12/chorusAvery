@@ -2,34 +2,60 @@ from pydub import AudioSegment
 import os
 import math
 import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
 
 # Settings
 input_folder = './recordings/chunks'
 output_folder = './recordings/clips'
-plot_folder = './recordings/plots'   # For optional plots
+plot_folder = './recordings/plots'
 chunk_size_ms = 5000  # 5 seconds
-min_clip_ms = 500     # Minimum clip size to save (0.5s)
-silence_thresh_relative = -14  # dB adjustment relative to window loudness
-save_plots = False     # <- Toggle plotting
+min_clip_ms = 500     # 0.5s minimum
+silence_thresh_relative = -14
+save_plots = False
 
 os.makedirs(output_folder, exist_ok=True)
 if save_plots:
     os.makedirs(plot_folder, exist_ok=True)
 
-# Helper: Calculate dBFS of a segment safely
+# Helpers
 def safe_dbfs(segment):
     return segment.dBFS if segment.dBFS != float('-inf') else -100.0
 
+def parse_chunk_start_time(base_name):
+    """Extract datetime from chunk filename like '250511_0419_22_10_47'"""
+    try:
+        parts = base_name.split('_')
+        if len(parts) < 5:
+            raise ValueError("Filename format not valid")
+
+        date_prefix = parts[0]  # YYMMDD
+        time_code = parts[1]   # Tascam-generated code
+        hour, minute, second = map(int, parts[2:5])
+
+        dt = datetime.strptime(date_prefix, "%y%m%d")
+        dt = dt.replace(hour=hour, minute=minute, second=second)
+        return dt, f"{date_prefix}_{time_code}"
+    except Exception as e:
+        print(f"⚠️ Unable to parse timestamp from: {base_name} ({e})")
+        return None, None
+
+def generate_clip_filename(base_name, start_time):
+    time_str = start_time.strftime('%H_%M_%S')
+    return f"{base_name}_{time_str}.wav"
+
 def slice_audio_dynamic_threshold(file_path):
     base_name = os.path.splitext(os.path.basename(file_path))[0]
+    chunk_start_time, original_base = parse_chunk_start_time(base_name)
+    if not chunk_start_time:
+        return
+
     sound = AudioSegment.from_file(file_path)
 
     current_start = 0
-    clip_index = 0
     clip_times = []
 
     while current_start < len(sound):
-        window = sound[current_start:current_start+chunk_size_ms]
+        window = sound[current_start:current_start + chunk_size_ms]
         window_dbfs = safe_dbfs(window)
 
         silence_thresh = window_dbfs + silence_thresh_relative
@@ -37,24 +63,26 @@ def slice_audio_dynamic_threshold(file_path):
         if window_dbfs > silence_thresh:
             end = current_start + chunk_size_ms
             while end < len(sound) and (end - current_start) < 10000:
-                next_chunk = sound[end:end+chunk_size_ms]
+                next_chunk = sound[end:end + chunk_size_ms]
                 if safe_dbfs(next_chunk) + silence_thresh_relative < silence_thresh:
                     break
                 end += chunk_size_ms
 
             clip = sound[current_start:end]
             if len(clip) >= min_clip_ms and clip.max_dBFS > -45:
-                output_name = os.path.join(output_folder, f"{base_name}_{clip_index}.wav")
-                clip.export(output_name, format="wav", parameters=["-acodec", "pcm_s16le"])
-                print(f"✅ Saved clip: {output_name} ({len(clip)} ms)")
-                clip_index += 1
+                # Calculate real clip start time
+                clip_start_time = chunk_start_time + timedelta(milliseconds=current_start)
+                clip_filename = generate_clip_filename(original_base, clip_start_time)
+                clip_path = os.path.join(output_folder, clip_filename)
+
+                clip.export(clip_path, format="wav", parameters=["-acodec", "pcm_s16le"])
+                print(f"✅ Saved clip: {clip_filename} ({len(clip)} ms)")
                 clip_times.append((current_start, end))
 
             current_start = end
         else:
             current_start += chunk_size_ms
 
-    # If enabled, draw a plot
     if save_plots:
         try:
             samples = sound.get_array_of_samples()
@@ -69,6 +97,7 @@ def slice_audio_dynamic_threshold(file_path):
         except Exception as e:
             print(f"⚠️ Could not plot: {e}")
 
+# MAIN
 print("\n🔍 Scanning for recordings to process...")
 for filename in os.listdir(input_folder):
     if filename.endswith('.wav'):
