@@ -34,13 +34,13 @@ def review_clips():
         play_clip(full_path)
 
         while True:
-            choice = input("[Y] keep & annotate / [N] delete / [R] replay / [Enter] repeat last: ").strip().lower()
+            input("[Y] keep & annotate / [N] delete / [R] replay / [Enter] repeat last: ").strip().lower()
+            
             if choice == '':
                 choice = last_action if last_action else 'r'
 
             if choice == 'y':
                 last_action = 'y'
-                # Move to training folder
                 dest_path = os.path.join(DEST_FOLDER, clip)
                 shutil.move(full_path, dest_path)
 
@@ -58,14 +58,26 @@ def review_clips():
                 else:
                     print(f"⚠️ Clip not found in DB: {clip}")
                 break
+
             elif choice == 'n':
                 last_action = 'n'
-                os.remove(full_path)
-                print(f"🗑️ Deleted: {clip}")
+                try:
+                    os.remove(full_path)
+                    print(f"🗑️ Deleted: {clip}")
+                except FileNotFoundError:
+                    print(f"⚠️ File already missing: {full_path}")
+
+                # Remove from ClipAnnotations and Clips
+                cursor.execute("DELETE FROM ClipAnnotations WHERE clip_id = (SELECT id FROM Clips WHERE clip_path = ?)", (clip,))
+                cursor.execute("DELETE FROM Clips WHERE clip_path = ?", (clip,))
+                conn.commit()
+                print(f"🧹 Removed DB entry for: {clip}")
                 break
+
             elif choice == 'r':
                 last_action = 'r'
                 play_clip(full_path)
+
             else:
                 print("⏭️ Invalid choice. Try again.")
 
