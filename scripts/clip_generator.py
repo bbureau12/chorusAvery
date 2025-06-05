@@ -18,10 +18,18 @@ cursor = conn.cursor()
 def prompt_location_id(filename):
     while True:
         try:
-            loc = input(f"\U0001F4CD Enter LocationID for '{filename}': ").strip()
+            loc = input(f"📍 Enter LocationID for '{filename}': ").strip()
             return int(loc)
         except ValueError:
             print("❌ Please enter a valid integer.")
+
+def prompt_datetime(prompt_msg):
+    while True:
+        try:
+            user_input = input(f"{prompt_msg} (format: YYYY-MM-DD HH:MM:SS): ").strip()
+            return datetime.datetime.strptime(user_input, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            print("❌ Invalid format. Please try again.")
 
 def create_source_file_entry(filename, location_id, from_dt, to_dt):
     cursor.execute("""
@@ -36,15 +44,22 @@ def format_chunk_filename(base_name, start_time):
     return f"{base_name}_{time_str}.wav"
 
 def split_audio_file(file_path):
-    base_name = os.path.splitext(os.path.basename(file_path))[0]
-    mod_time = datetime.datetime.fromtimestamp(os.path.getmtime(file_path))
-    audio = AudioSegment.from_wav(file_path)
-    duration_sec = len(audio) / 1000.0
-    from_dt = mod_time - datetime.timedelta(seconds=duration_sec)
-    to_dt = mod_time
+    base_name, ext = os.path.splitext(os.path.basename(file_path))
+    ext = ext.lower().replace('.', '')  # 'mp3' or 'wav'
+
+    try:
+        mod_time = datetime.datetime.fromtimestamp(os.path.getmtime(file_path))
+        audio = AudioSegment.from_file(file_path, format=ext)
+        duration_sec = len(audio) / 1000.0
+        from_dt = mod_time - datetime.timedelta(seconds=duration_sec)
+        to_dt = mod_time
+    except Exception as e:
+        print(f"⚠️ Could not extract mod time for {file_path}: {e}")
+        from_dt = prompt_datetime("🕒 Enter start time manually")
+        to_dt = from_dt + datetime.timedelta(seconds=len(audio) / 1000.0)
 
     location_id = prompt_location_id(base_name)
-    create_source_file_entry(base_name + ".wav", location_id, from_dt, to_dt)
+    create_source_file_entry(os.path.basename(file_path), location_id, from_dt, to_dt)
 
     print(f"📁 Splitting '{base_name}' into chunks...")
 
@@ -62,10 +77,10 @@ def split_audio_file(file_path):
     print(f"🗑️ Deleted original: {file_path}")
 
 # === MAIN ===
-print("\n🔍 Looking for .wav files to split...")
+print("\n🔍 Looking for .mp3 and .wav files to split...")
 
 for filename in os.listdir(RAW_FOLDER):
-    if filename.endswith('.wav'):
+    if filename.lower().endswith(('.mp3', '.wav')):
         file_path = os.path.join(RAW_FOLDER, filename)
         split_audio_file(file_path)
 

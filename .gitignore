@@ -33,3 +33,9 @@ BirdNET-Analyzer
 /training
 
 /misclassified
+
+*.wav
+
+*.keras
+
+*.png

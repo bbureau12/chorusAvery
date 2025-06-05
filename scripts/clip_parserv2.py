@@ -13,6 +13,10 @@ min_clip_ms = 500     # 0.5s minimum
 silence_thresh_relative = -14
 save_plots = False
 
+# Boost settings
+boost_threshold_dbfs = -25.0  # If max_dBFS is below this, apply boost
+boost_amount_db = 15
+
 os.makedirs(output_folder, exist_ok=True)
 if save_plots:
     os.makedirs(plot_folder, exist_ok=True)
@@ -62,14 +66,19 @@ def slice_audio_dynamic_threshold(file_path):
 
         if window_dbfs > silence_thresh:
             end = current_start + chunk_size_ms
-            while end < len(sound) and (end - current_start) < 10000:
+            while end < len(sound) and (end - current_start) < 5000:
                 next_chunk = sound[end:end + chunk_size_ms]
                 if safe_dbfs(next_chunk) + silence_thresh_relative < silence_thresh:
                     break
                 end += chunk_size_ms
 
             clip = sound[current_start:end]
-            if len(clip) >= min_clip_ms and clip.max_dBFS > -45:
+            if len(clip) >= min_clip_ms and clip.max_dBFS > -38:
+                # Boost if it's still too quiet
+                if clip.max_dBFS < boost_threshold_dbfs:
+                    print(f"🔊 Boosting clip from {clip.max_dBFS:.2f} dBFS by {boost_amount_db} dB")
+                    clip += boost_amount_db
+
                 # Calculate real clip start time
                 clip_start_time = chunk_start_time + timedelta(milliseconds=current_start)
                 clip_filename = generate_clip_filename(original_base, clip_start_time)
@@ -104,5 +113,7 @@ for filename in os.listdir(input_folder):
         full_path = os.path.join(input_folder, filename)
         print(f"\n🎧 Processing: {filename}")
         slice_audio_dynamic_threshold(full_path)
+        os.remove(full_path)
+        print(f"🗑️ Deleted: {filename}")
 
 print("\n🏁 Done!")

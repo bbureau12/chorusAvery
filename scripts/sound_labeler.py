@@ -4,6 +4,7 @@ import os
 from pydub import AudioSegment
 import simpleaudio as sa
 import datetime
+import re
 
 # === SETTINGS ===
 db_path = './db/chorusAvery.db'
@@ -21,22 +22,49 @@ species_list = cursor.fetchall()
 cursor.execute("SELECT id, name FROM NonAnimalSounds ORDER BY name ASC")
 non_animal_list = cursor.fetchall()
 
+# === Extract original filename from chunk name ===
+def extract_original_filename(clip_filename):
+    match = re.match(r'^(\d{6}_\d{4})', clip_filename)
+    if match:
+        return match.group(1)
+    raise ValueError(f"❌ Could not determine original file base from: {clip_filename}")
+
 # === Parse date from filename ===
 def parse_date_from_filename(filename):
     base = os.path.splitext(filename)[0]
     try:
-        parts = base.split('_')
-        if len(parts) < 3:
+        # Split off split index if present
+        if '~' in base:
+            main_part, split_index = base.split('~', 1)
+        else:
+            main_part = base
+            split_index = None
+
+        parts = main_part.split('_')
+
+        if len(parts) < 4:
             raise ValueError("Filename does not contain enough parts")
-        
-        date_str = parts[0]           # '250511'
-        time_str = '_'.join(parts[2:])  # '22_14_07'
+
+        date_str = parts[0]  # e.g. 250513
+
+        # Use the last three parts as hour, minute, second
+        time_parts = parts[-3:]
+        time_str = '_'.join(time_parts)
+
         dt = datetime.datetime.strptime(f"{date_str}_{time_str}", "%y%m%d_%H_%M_%S")
+
+        # If split_index == '2', add 2 seconds to avoid overlap
+        if split_index == '2':
+            dt += datetime.timedelta(seconds=2)
+
         return dt
-    except Exception:
-        print(f"⚠️ Could not parse datetime from filename: {filename}")
+
+    except Exception as e:
+        print(f"⚠️ Could not parse datetime from filename: {filename} — {e}")
         return None
-    
+
+
+
 # === Play clip ===
 def play_clip(file_path):
     sound = AudioSegment.from_file(file_path)
@@ -60,23 +88,24 @@ def save_labeled_clip(clip_name, full_path, labels):
     shutil.move(full_path, destination_path)
     print(f"📦 Moved labeled file to: {destination_path}")
 
-    # Parse start time from filename
     start_dt = parse_date_from_filename(clip_name)
     if not start_dt:
         start_dt = datetime.datetime.now()
 
     sound = AudioSegment.from_file(destination_path)
-    duration = len(sound) / 1000.0  # in seconds
+    duration = len(sound) / 1000.0
     end_dt = start_dt + datetime.timedelta(seconds=duration)
 
-    # Write to DB
-    cursor.execute("""
-        INSERT OR IGNORE INTO SourceFiles (filename, From_Date, To_Date)
-        VALUES (?, ?, ?)
-    """, (clip_name, start_dt, end_dt))
-    source_id = cursor.lastrowid or cursor.execute(
-        "SELECT id FROM SourceFiles WHERE filename = ?", (clip_name,)
-    ).fetchone()[0]
+    try:
+        source_base = extract_original_filename(clip_name)
+        cursor.execute("SELECT id FROM SourceFiles WHERE filename LIKE ?", (f"{source_base}%",))
+        source_row = cursor.fetchone()
+        if not source_row:
+            raise ValueError(f"❌ No SourceFile found starting with: {source_base}")
+        source_id = source_row[0]
+    except Exception as e:
+        print(e)
+        return None
 
     cursor.execute("""
         INSERT INTO Clips (clip_path, start_time, end_time, source_id, start_date_source, end_date_source)
@@ -131,38 +160,82 @@ def label_clip(clip_name, labels, names):
     play_clip(full_path)
 
     if labels and names:
-        use_previous = input(f"Use previous labels ({', '.join(names)})? (Y/n): ").strip().lower()
-        if use_previous == 'n':
-            labels.clear()
-            names.clear()
-
-    if not labels:
         while True:
-            search = input("Type to search species/sounds (or '/' to split, '+' to amplify, '-' to reduce, '!' to replay, '*' to delete, 'undo', or ENTER to finish): ").strip()
-
-            if search == '!':
-                play_clip(full_path)
-                continue
-            if search == '*':
-                os.remove(full_path)
-                print(f"🗑️ Deleted {clip_name}.")
-                return labels, names
-            if search == 'undo':
-                undo_last_label()
-                return labels, names
-            if search == '/':
+            use_previous = input(f"Use previous labels ({', '.join(names)})? (Y/n/R/A): ").strip().lower()
+            if use_previous == 'n':
+                labels.clear()
+                names.clear()
+                break
+            elif use_previous == 'y' or use_previous == '':
+                break
+            elif use_previous == 'a':
+                term = input("🔍 Enter species/sound to add: ").strip()
+                matches = search_items(term, species_list + non_animal_list)
+                if matches:
+                    for idx, (id_, name) in enumerate(matches):
+                        print(f"{idx+1}. {name}")
+                    choice = input("Select number(s) separated by commas: ").strip()
+                    try:
+                        selected = [int(x)-1 for x in choice.split(',')]
+                        for s in selected:
+                            if 0 <= s < len(matches) and matches[s] not in labels:
+                                labels.append(matches[s])
+                                names.append(matches[s][1])
+                                print(f"✅ Added: {matches[s][1]}")
+                    except Exception as e:
+                        print(f"⚠️ Invalid selection: {e}")
+                else:
+                    print("No matches found.")
+            elif use_previous == 'r':
+                if not labels:
+                    print("🚫 No sounds to remove.")
+                    continue
+                print("🔎 Currently selected sounds:")
+                for idx, (_, name) in enumerate(labels):
+                    print(f"{idx+1}. {name}")
+                choice = input("Select number(s) to remove, separated by commas: ").strip()
+                try:
+                    selected = [int(x)-1 for x in choice.split(',')]
+                    selected.sort(reverse=True)
+                    for s in selected:
+                        if 0 <= s < len(labels):
+                            removed_name = names.pop(s)
+                            labels.pop(s)
+                            print(f"❌ Removed: {removed_name}")
+                except Exception as e:
+                    print(f"⚠️ Invalid selection: {e}")
+            elif use_previous == '+':
+                sound = AudioSegment.from_file(full_path)
+                (sound + 5).export(full_path, format="wav")
+                print("🌟 Volume increased.")
+            elif use_previous == '-':
+                sound = AudioSegment.from_file(full_path)
+                (sound - 5).export(full_path, format="wav")
+                print("🔇 Volume decreased.")
+            elif use_previous == '/':
                 sound = AudioSegment.from_file(full_path)
                 midpoint = len(sound) // 2
                 first_half = sound[:midpoint]
                 second_half = sound[midpoint:]
                 base, ext = os.path.splitext(clip_name)
-                clip1_name = f"{base}_1.wav"
-                clip2_name = f"{base}_2.wav"
+                clip1_name = f"{base}~1.wav"
+                clip2_name = f"{base}~2.wav"
                 first_half.export(os.path.join(clips_folder, clip1_name), format="wav")
                 second_half.export(os.path.join(clips_folder, clip2_name), format="wav")
                 os.remove(full_path)
                 print(f"✂️ Split into: {clip1_name}, {clip2_name}")
                 return 'split', [clip1_name, clip2_name]
+            else:
+                print("⚠️ Invalid option. Choose Y, N, R, A, +, -, or /.")
+
+    if not labels:
+        while True:
+            print(f"\n🎯 Current sounds selected: {', '.join(names) if names else 'None'}")
+            search = input("Type to search (R=remove, +=louder, -=quieter, /=split, !=replay, *=delete, undo, or ENTER to finish): ").strip().lower()
+
+            if search == '!':
+                play_clip(full_path)
+                continue
             if search == '+':
                 sound = AudioSegment.from_file(full_path)
                 (sound + 5).export(full_path, format="wav")
@@ -171,10 +244,49 @@ def label_clip(clip_name, labels, names):
             if search == '-':
                 sound = AudioSegment.from_file(full_path)
                 (sound - 5).export(full_path, format="wav")
-                print("🔇 Volume reduced.")
+                print("🔇 Volume decreased.")
                 continue
-            if not search:
+            if search == '/':
+                sound = AudioSegment.from_file(full_path)
+                midpoint = len(sound) // 2
+                first_half = sound[:midpoint]
+                second_half = sound[midpoint:]
+                base, ext = os.path.splitext(clip_name)
+                clip1_name = f"{base}~1.wav"
+                clip2_name = f"{base}~2.wav"
+                first_half.export(os.path.join(clips_folder, clip1_name), format="wav")
+                second_half.export(os.path.join(clips_folder, clip2_name), format="wav")
+                os.remove(full_path)
+                print(f"✂️ Split into: {clip1_name}, {clip2_name}")
+                return 'split', [clip1_name, clip2_name]
+            if search == '*':
+                os.remove(full_path)
+                print(f"🗑️ Deleted {clip_name}.")
+                return labels, names
+            if search == 'undo':
+                undo_last_label()
+                return labels, names
+            if search == '':
                 break
+            if search == 'r':
+                if not labels:
+                    print("🚫 No sounds to remove.")
+                    continue
+                print("🔎 Currently selected sounds:")
+                for idx, (_, name) in enumerate(labels):
+                    print(f"{idx+1}. {name}")
+                choice = input("Select number(s) to remove, separated by commas: ").strip()
+                try:
+                    selected = [int(x)-1 for x in choice.split(',')]
+                    selected.sort(reverse=True)
+                    for s in selected:
+                        if 0 <= s < len(labels):
+                            removed_name = names.pop(s)
+                            labels.pop(s)
+                            print(f"❌ Removed: {removed_name}")
+                except Exception as e:
+                    print(f"⚠️ Invalid selection: {e}")
+                continue
 
             matches = search_items(search, species_list + non_animal_list)
             if matches:
@@ -187,6 +299,7 @@ def label_clip(clip_name, labels, names):
                         if 0 <= s < len(matches) and matches[s] not in labels:
                             labels.append(matches[s])
                             names.append(matches[s][1])
+                            print(f"✅ Added: {matches[s][1]}")
                 except Exception as e:
                     print(f"⚠️ Invalid selection: {e}")
             else:
