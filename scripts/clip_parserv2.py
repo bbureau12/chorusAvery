@@ -47,13 +47,26 @@ def generate_clip_filename(base_name, start_time):
     time_str = start_time.strftime('%H_%M_%S')
     return f"{base_name}_{time_str}.wav"
 
-def slice_audio_dynamic_threshold(file_path):
+
+def apply_bandpass_filter(audio, lowcut=300, highcut=8000):
+    """
+    Apply a bandpass filter by chaining high-pass and low-pass filters.
+    """
+    filtered = audio.high_pass_filter(lowcut)
+    filtered = filtered.low_pass_filter(highcut)
+    return filtered
+
+def slice_audio_dynamic_threshold(file_path, apply_bandpass=False, lowcut=200, highcut=12000):
     base_name = os.path.splitext(os.path.basename(file_path))[0]
     chunk_start_time, original_base = parse_chunk_start_time(base_name)
     if not chunk_start_time:
         return
 
     sound = AudioSegment.from_file(file_path)
+
+    if apply_bandpass:
+        print(f"🎚️ Applying bandpass filter: {lowcut}-{highcut} Hz")
+        sound = apply_bandpass_filter(sound, lowcut, highcut)
 
     current_start = 0
     clip_times = []
@@ -74,12 +87,10 @@ def slice_audio_dynamic_threshold(file_path):
 
             clip = sound[current_start:end]
             if len(clip) >= min_clip_ms and clip.max_dBFS > -38:
-                # Boost if it's still too quiet
                 if clip.max_dBFS < boost_threshold_dbfs:
                     print(f"🔊 Boosting clip from {clip.max_dBFS:.2f} dBFS by {boost_amount_db} dB")
                     clip += boost_amount_db
 
-                # Calculate real clip start time
                 clip_start_time = chunk_start_time + timedelta(milliseconds=current_start)
                 clip_filename = generate_clip_filename(original_base, clip_start_time)
                 clip_path = os.path.join(output_folder, clip_filename)
@@ -91,6 +102,7 @@ def slice_audio_dynamic_threshold(file_path):
             current_start = end
         else:
             current_start += chunk_size_ms
+
 
     if save_plots:
         try:
@@ -112,7 +124,7 @@ for filename in os.listdir(input_folder):
     if filename.endswith('.wav'):
         full_path = os.path.join(input_folder, filename)
         print(f"\n🎧 Processing: {filename}")
-        slice_audio_dynamic_threshold(full_path)
+        slice_audio_dynamic_threshold(full_path, apply_bandpass=False)
         os.remove(full_path)
         print(f"🗑️ Deleted: {filename}")
 

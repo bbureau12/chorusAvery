@@ -157,6 +157,10 @@ def label_clip(clip_name, labels, names):
 
     print(f"\n🎵 Now labeling: {clip_name}")
     full_path = os.path.join(clips_folder, clip_name)
+    sound = AudioSegment.from_file(full_path)
+    duration_seconds = len(sound) / 1000.0
+    duration_str = f"{duration_seconds:.2f} sec"
+    print(f"⏱️ Clip duration: {duration_str}")
     play_clip(full_path)
 
     if labels and names:
