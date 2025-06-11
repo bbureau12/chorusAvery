@@ -310,8 +310,26 @@ def label_clip(clip_name, labels, names):
                 print("No matches found.")
 
     if len(labels) == 0:
-        os.remove(full_path)
-        print(f"🗑️ Removed unlabeled file: {clip_name}")
+        skip_folder = './recordings/training_data/skip'
+        os.makedirs(skip_folder, exist_ok=True)
+        destination_path = os.path.join(skip_folder, clip_name)
+
+        # Move the file
+        shutil.move(full_path, destination_path)
+        print(f"🚫 Moved unlabeled file to skip folder: {clip_name}")
+
+        # Check skip folder size
+        skip_files = sorted(
+            [f for f in os.listdir(skip_folder) if f.endswith('.wav')],
+            key=lambda x: os.path.getctime(os.path.join(skip_folder, x))
+        )
+        if len(skip_files) > 1500:
+            # Delete oldest files beyond the 1,500 limit
+            files_to_delete = skip_files[:-1500]
+            for file_to_delete in files_to_delete:
+                file_path = os.path.join(skip_folder, file_to_delete)
+                os.remove(file_path)
+                print(f"🗑️ Deleted old skip file: {file_to_delete}")
     else:
         save_labeled_clip(clip_name, full_path, labels)
 
@@ -325,7 +343,12 @@ labels = []
 names = []
 i = 0
 
+# Counters
+total_files_processed = 0
+total_files_skipped = 0
+
 while i < len(clips):
+    print(f"\n📊 Session Progress: {total_files_processed} total processed | {total_files_skipped} skipped.")
     clip = clips[i]
     result = label_clip(clip, labels, names)
     if isinstance(result, tuple) and result[0] == 'split':
