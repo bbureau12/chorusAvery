@@ -1,3 +1,4 @@
+import random
 import shutil
 import sqlite3
 import os
@@ -10,7 +11,10 @@ import re
 db_path = './db/chorusAvery.db'
 clips_folder = './recordings/clips'
 save_folder = './recording/training_data'
-
+skip_file_limit = 1500
+# === Counters ===
+total_files_processed = 0
+total_files_skipped = 0
 # === Connect to DB ===
 conn = sqlite3.connect(db_path)
 cursor = conn.cursor()
@@ -123,7 +127,7 @@ def save_labeled_clip(clip_name, full_path, labels):
             id_ if is_species else None,
             id_ if not is_species else None
         ))
-
+        
     conn.commit()
     return clip_id
 
@@ -150,6 +154,8 @@ def undo_last_label():
 
 # === Label single clip ===
 def label_clip(clip_name, labels, names):
+    global total_files_skipped, total_files_processed
+    total_files_processed += 1
     cursor.execute("SELECT id FROM Clips WHERE clip_path = ?", (clip_name,))
     if cursor.fetchone():
         print(f"⏭️ Skipping {clip_name} — already labeled.")
@@ -310,26 +316,30 @@ def label_clip(clip_name, labels, names):
                 print("No matches found.")
 
     if len(labels) == 0:
-        skip_folder = './recordings/training_data/skip'
+        total_files_skipped += 1
+        skip_folder = './recording/test/skip'
         os.makedirs(skip_folder, exist_ok=True)
         destination_path = os.path.join(skip_folder, clip_name)
 
         # Move the file
         shutil.move(full_path, destination_path)
-        print(f"🚫 Moved unlabeled file to skip folder: {clip_name}")
+        print(f"🚫 Moved unlabeled file to skip folder: {destination_path}")
 
         # Check skip folder size
         skip_files = sorted(
             [f for f in os.listdir(skip_folder) if f.endswith('.wav')],
             key=lambda x: os.path.getctime(os.path.join(skip_folder, x))
         )
-        if len(skip_files) > 1500:
-            # Delete oldest files beyond the 1,500 limit
+        if len(skip_files) > skip_file_limit:
+            # Shuffle the files randomly
+            random.shuffle(skip_files)
+
+            # Delete as many as needed to bring the count to 1500
             files_to_delete = skip_files[:-1500]
             for file_to_delete in files_to_delete:
                 file_path = os.path.join(skip_folder, file_to_delete)
                 os.remove(file_path)
-                print(f"🗑️ Deleted old skip file: {file_to_delete}")
+                print(f"🗑️ Deleted random skip file: {file_to_delete}")
     else:
         save_labeled_clip(clip_name, full_path, labels)
 
@@ -342,10 +352,6 @@ clips = sorted([f for f in os.listdir(clips_folder) if f.endswith('.wav')])
 labels = []
 names = []
 i = 0
-
-# Counters
-total_files_processed = 0
-total_files_skipped = 0
 
 while i < len(clips):
     print(f"\n📊 Session Progress: {total_files_processed} total processed | {total_files_skipped} skipped.")

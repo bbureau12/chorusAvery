@@ -33,14 +33,7 @@ def copy_and_import_file(source_path, destination_folder, conn):
     # Copy the file
     shutil.copy2(source_path, destination_path)
     print(f"✅ Copied: {filename} -> {destination_path}")
-
-    # Insert record into SourceFiles
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO SourceFiles (filename, import_timestamp)
-        VALUES (?, ?)
-    """, (filename, datetime.utcnow()))
-    conn.commit()
+    
     print(f"✅ Imported record into SourceFiles: {filename}")
 
 def main():
