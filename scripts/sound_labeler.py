@@ -2,6 +2,7 @@ import random
 import shutil
 import sqlite3
 import os
+import numpy as np
 from pydub import AudioSegment
 import simpleaudio as sa
 import datetime
@@ -60,14 +61,15 @@ class ChorusAveryLabeler:
         query = query.lower()
         return [(id_, name) for id_, name in items if query in name.lower()]
 
-    def save_labeled_clip(self, clip_name, full_path, labels):
+    def save_labeled_clip(self, clip_name, full_path, labels, sound, boost):
         destination_path = os.path.join(self.save_folder, clip_name)
         os.makedirs(os.path.dirname(destination_path), exist_ok=True)
         shutil.move(full_path, destination_path)
         print(f"📦 Moved labeled file to: {destination_path}")
+        max_dbfs, avg_dbfs = self.compute_db_stats(sound)
+        print(f"🔊 Max dBFS: {max_dbfs:.2f} | Avg dBFS: {avg_dbfs:.2f}")
 
         start_dt = self.parse_date_from_filename(clip_name) or datetime.datetime.now()
-        sound = AudioSegment.from_file(destination_path)
         duration = len(sound) / 1000.0
         end_dt = start_dt + datetime.timedelta(seconds=duration)
 
@@ -83,9 +85,9 @@ class ChorusAveryLabeler:
             return None
 
         self.cursor.execute("""
-            INSERT INTO Clips (clip_path, start_time, end_time, source_id, start_date_source, end_date_source)
-            VALUES (?, 0, ?, ?, ?, ?)
-        """, (clip_name, duration, source_id, start_dt, end_dt))
+            INSERT INTO Clips (clip_path, start_time, end_time, source_id, start_date_source, end_date_source, max_dbfs, avg_dbfs, boost_db)
+            VALUES (?, 0, ?, ?, ?, ?, ?, ?, ?)
+        """, (clip_name, duration, source_id, start_dt, end_dt, max_dbfs, avg_dbfs, boost))
         clip_id = self.cursor.lastrowid
 
         for id_, name in labels:
@@ -128,7 +130,9 @@ class ChorusAveryLabeler:
 
     def list_clips(self):
         return sorted([f for f in os.listdir(self.clips_folder) if f.endswith('.wav')])
+    
     def label_clip(self, clip_name, labels, names):
+        boost = 0
         self.total_files_processed += 1
         self.cursor.execute("SELECT id FROM Clips WHERE clip_path = ?", (clip_name,))
         if self.cursor.fetchone():
@@ -168,11 +172,13 @@ class ChorusAveryLabeler:
             if search == '+':
                 sound = AudioSegment.from_file(full_path)
                 (sound + 5).export(full_path, format="wav")
+                boost += 5
                 print("🌟 Volume increased.")
                 continue
             if search == '-':
                 sound = AudioSegment.from_file(full_path)
                 (sound - 5).export(full_path, format="wav")
+                boost -= 5
                 print("🔇 Volume decreased.")
             elif search == '/':
                 base, _ = os.path.splitext(clip_name)
@@ -235,9 +241,20 @@ class ChorusAveryLabeler:
                     os.remove(os.path.join(skip_folder, f))
                     print(f"🗑️ Deleted skip file: {f}")
         else:
-            self.save_labeled_clip(clip_name, full_path, labels)
+            self.save_labeled_clip(clip_name, full_path, labels, sound, boost)
 
         return labels, names
+        
+    def compute_db_stats(self, sound):
+        samples = np.array(sound.get_array_of_samples())
+        peak_amplitude = np.max(np.abs(samples))
+        # protect against log(0)
+        if peak_amplitude == 0:
+            max_dbfs = -float('inf')
+        else:
+            max_dbfs = 20 * np.log10(peak_amplitude / float(2 ** (8 * sound.sample_width - 1)))
+        avg_dbfs = sound.dBFS
+        return max_dbfs, avg_dbfs
 
     def run_labeling_session(self):
         clips = self.list_clips()

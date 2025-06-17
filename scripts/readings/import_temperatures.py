@@ -102,7 +102,7 @@ for filepath in glob.glob(os.path.join(data_folder, "*.csv")):
         conn.commit()
 
         # Delete the processed file
-       # os.remove(filepath)
+        os.remove(filepath)
         print(f"Deleted file: {filepath}")
 
     except Exception as e:
