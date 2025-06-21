@@ -132,6 +132,7 @@ class ChorusAveryLabeler:
         return sorted([f for f in os.listdir(self.clips_folder) if f.endswith('.wav')])
     
     def label_clip(self, clip_name, labels, names):
+        trim_ms = 500 
         boost = 0
         self.total_files_processed += 1
         self.cursor.execute("SELECT id FROM Clips WHERE clip_path = ?", (clip_name,))
@@ -166,7 +167,7 @@ class ChorusAveryLabeler:
 
         while True:
             print(f"\n🎯 Selected: {', '.join(names) if names else 'None'}")
-            search = input("Search (R=remove, +=louder, -=quieter, /=split, !=replay, *=delete, # clear labels, undo, ENTER=done): ").strip().lower()
+            search = input("Search (R=remove, +=louder, -=quieter, /=split, !=replay, *=delete, # clear labels, b trim from begining, e trim from end, undo, ENTER=done): ").strip().lower()
             if search == '!':
                 self.play_clip(full_path)
             if search == '+':
@@ -220,6 +221,25 @@ class ChorusAveryLabeler:
                         print(f"❌ Removed: {removed}")
                 except Exception as e:
                     print(f"⚠️ Invalid removal: {e}")
+            elif search == 'b':
+                # Trim from beginning
+                sound = AudioSegment.from_file(full_path)
+                if len(sound) > trim_ms:
+                    trimmed = sound[trim_ms:]
+                    trimmed.export(full_path, format="wav")
+                    print(f"✂️ Trimmed {trim_ms/1000:.1f} sec from BEGINNING.")
+                else:
+                    print("⚠️ Clip too short to trim.")
+
+            elif search == 'e':
+                # Trim from end
+                sound = AudioSegment.from_file(full_path)
+                if len(sound) > trim_ms:
+                    trimmed = sound[:-trim_ms]
+                    trimmed.export(full_path, format="wav")
+                    print(f"✂️ Trimmed {trim_ms/1000:.1f} sec from END.")
+                else:
+                    print("⚠️ Clip too short to trim.")
             else:
                 apply_label_search(search)
 
@@ -278,6 +298,6 @@ if __name__ == "__main__":
     labeler = ChorusAveryLabeler(
         db_path='./db/chorusAvery.db',
         clips_folder='./recordings/clips',
-        save_folder='./recording/training_data'
+        save_folder='./recordings/training_data'
     )
     labeler.run_labeling_session()
