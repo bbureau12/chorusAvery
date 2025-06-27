@@ -6,7 +6,10 @@ import numpy as np
 from pydub import AudioSegment
 import simpleaudio as sa
 import datetime
+import json
 import re
+from scipy import signal
+import matplotlib.pyplot as plt
 
 class ChorusAveryLabeler:
     def __init__(self, db_path, clips_folder, save_folder, skip_file_limit=1500):
@@ -133,7 +136,18 @@ class ChorusAveryLabeler:
     
     def label_clip(self, clip_name, labels, names):
         trim_ms = 500 
-        boost = 0
+        json_path = os.path.join(self.clips_folder, clip_name.replace(".wav", ".json"))
+        original_boost = 0
+        if os.path.exists(json_path):
+            try:
+                with open(json_path, "r") as jf:
+                    meta = json.load(jf)
+                    original_boost = meta.get("boost_applied_db", 0)
+                    print(f"📄 Found sidecar JSON: boost_applied_db = {original_boost} dB")
+            except Exception as e:
+                print(f"⚠️ Could not read sidecar JSON: {e}")
+
+        boost = original_boost  # start boost with the slicer's boost
         self.total_files_processed += 1
         self.cursor.execute("SELECT id FROM Clips WHERE clip_path = ?", (clip_name,))
         if self.cursor.fetchone():
@@ -181,6 +195,22 @@ class ChorusAveryLabeler:
                 (sound - 5).export(full_path, format="wav")
                 boost -= 5
                 print("🔇 Volume decreased.")
+            elif search == '&':
+                samples = np.array(sound.get_array_of_samples())
+                sample_rate = sound.frame_rate
+
+                frequencies, times, Sxx = signal.spectrogram(samples, fs=sample_rate)
+
+                plt.figure(figsize=(10, 4))
+                plt.pcolormesh(times, frequencies, 10 * np.log10(Sxx), shading='gouraud')
+                plt.title(f"Spectrogram of {clip_name}")
+                plt.ylabel('Frequency [Hz]')
+                plt.xlabel('Time [sec]')
+                plt.colorbar(label='dB')
+                plt.ylim(0, 8000)
+                plt.tight_layout()
+                plt.show()
+                continue
             elif search == '/':
                 base, _ = os.path.splitext(clip_name)
                 midpoint = len(sound) // 2
