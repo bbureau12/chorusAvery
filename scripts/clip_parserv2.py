@@ -84,7 +84,7 @@ def slice_audio_dynamic_threshold(file_path, apply_bandpass=False, lowcut=200, h
             clip = sound[current_start:end]
             boost_applied_db = 0
 
-            if len(clip) >= min_clip_ms and clip.max_dBFS > -44:
+            if len(clip) >= min_clip_ms and clip.max_dBFS > -40:
                 if clip.max_dBFS < boost_threshold_dbfs:
                     print(f"🔊 Boosting from {clip.max_dBFS:.2f} dBFS by {boost_amount_db} dB")
                     clip += boost_amount_db
