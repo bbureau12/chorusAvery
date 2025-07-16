@@ -2,26 +2,33 @@ import os
 import random
 import shutil
 import sqlite3
+import sys
 from pydub import AudioSegment
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')  # 🔹 Prevent tkinter errors on shutdown
 import matplotlib.pyplot as plt
 from scipy.signal import spectrogram
+# === Import project utilities
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+sys.path.insert(0, project_root)
+from utils.generate_spectogram import generate_mel_spectrogram
+from scripts.augmentation.species_nonspecies_augmentor import SpeciesAugmentor
+from scripts.training.collection.collect_negative_clips import NegativeClipGenerator
 
 def search_species(cursor, query):
     cursor.execute("SELECT id, name FROM Species")
     return [(id_, name) for id_, name in cursor.fetchall() if query.lower() in name.lower()]
 
-def generate_spectrogram(audio, output_path):
-    samples = np.array(audio.get_array_of_samples())
-    freqs, times, Sxx = spectrogram(samples, fs=audio.frame_rate, nperseg=256)
-    plt.figure(figsize=(2, 2))
-    plt.pcolormesh(times, freqs, 10*np.log10(Sxx + 1e-10), shading='gouraud')
-    plt.axis('off')
-    plt.tight_layout(pad=0)
-    plt.savefig(output_path, bbox_inches='tight', pad_inches=0)
-    plt.close()
+# def generate_spectrogram(audio, output_path):
+#     samples = np.array(audio.get_array_of_samples())
+#     freqs, times, Sxx = spectrogram(samples, fs=audio.frame_rate, nperseg=256)
+#     plt.figure(figsize=(2, 2))
+#     plt.pcolormesh(times, freqs, 10*np.log10(Sxx + 1e-10), shading='gouraud')
+#     plt.axis('off')
+#     plt.tight_layout(pad=0)
+#     plt.savefig(output_path, bbox_inches='tight', pad_inches=0)
+#     plt.close()
 
 def pad_audio(audio, pad_ms=500):
     silence_segment = AudioSegment.silent(duration=pad_ms)
@@ -70,6 +77,14 @@ def main():
 
     slug = species_name.lower().replace(" ", "_")
     base_dir = f"./recordings/model/{slug}"
+    if os.path.exists(base_dir):
+        resp = input(f"⚠️ The model folder '{base_dir}' already exists. Delete it before continuing? (y/n): ").strip().lower()
+        if resp == 'y':
+            shutil.rmtree(base_dir)
+            print(f"🗑️ Removed existing model folder: {base_dir}")
+        else:
+            print("🚫 Exiting to prevent mixing old and new datasets in this model.")
+            return
     train_dir = os.path.join(base_dir, "train", str(species_id))
     val_dir = os.path.join(base_dir, "validation", str(species_id))
     test_dir = os.path.join(base_dir, "test", str(species_id))
@@ -116,7 +131,7 @@ def main():
         out_wav = f"{clip_basename}.wav"
         out_path = os.path.join(base_dir, out_wav)
         clip.export(out_path, format="wav")
-        generate_spectrogram(clip, out_path.replace('.wav', '.png'))
+        generate_mel_spectrogram(clip, out_path.replace('.wav', '.png'))
         processed_clips.append(out_path)
 
         # Padding
@@ -124,7 +139,7 @@ def main():
         padded_out = f"{clip_basename}_pad.wav"
         padded_path = os.path.join(base_dir, padded_out)
         padded.export(padded_path, format="wav")
-        generate_spectrogram(padded, padded_path.replace('.wav', '.png'))
+        generate_mel_spectrogram(padded, padded_path.replace('.wav', '.png'))
         processed_clips.append(padded_path)
         # 🔹 Boosted augmentation (if needed)
         boosted = polarize_volume(clip, -22.0)
@@ -132,17 +147,22 @@ def main():
             boosted_out = f"{clip_basename}_boosted.wav"
             boosted_path = os.path.join(base_dir, boosted_out)
             boosted.export(boosted_path, format="wav")
-            generate_spectrogram(boosted, boosted_path.replace('.wav', '.png'))
+            generate_mel_spectrogram(boosted, boosted_path.replace('.wav', '.png'))
             processed_clips.append(boosted_path)
             
         # Augmentations
-        for i in range(3):
+        augment_count = 3
+        if len(clips) < 500:
+            augment_count = 5
+        if len(clips) < 150:
+            augment_count = 10
+        for i in range(augment_count):
             noise = random.choice(noises)
             augmented = overlay_noise(clip, noise, clip.dBFS)
             aug_out = f"{clip_basename}_aug{i}.wav"
             aug_path = os.path.join(base_dir, aug_out)
             augmented.export(aug_path, format="wav")
-            generate_spectrogram(augmented, aug_path.replace('.wav', '.png'))
+            generate_mel_spectrogram(augmented, aug_path.replace('.wav', '.png'))
             processed_clips.append(aug_path)
 
     train, val, test = split_data(processed_clips, train_ratio=0.7, val_ratio=0.2)
@@ -156,51 +176,14 @@ def main():
 
     print(f"✅ Data split: {len(train)} train, {len(val)} validation, {len(test)} test.")
 
-    neg_train_dir = os.path.join(base_dir, "train", "0")
-    neg_val_dir   = os.path.join(base_dir, "validation", "0")
-    neg_test_dir  = os.path.join(base_dir, "test", "0")
+    ## Run the augmentation
+    augmentor = SpeciesAugmentor(db_path=db_path, models_root="./recordings/model")
+    augmentor.run(species_name=species_name, species_id=species_id)
 
-    neg_clips = []
+    ## (Finally) run the negatives
 
-    cursor.execute("""
-        SELECT DISTINCT Clips.clip_path
-        FROM Clips
-        JOIN ClipAnnotations ON Clips.id = ClipAnnotations.clip_id
-        WHERE ClipAnnotations.species_id != ?
-        AND Clips.id NOT IN (
-            SELECT clip_id FROM ClipAnnotations WHERE species_id = ?
-        )
-    """, (species_id, species_id))
-    neg_clips = [row[0] for row in cursor.fetchall()]
-
-    random.shuffle(neg_clips)
-    num_neg = len(processed_clips)
-
-    for split_name, folder, num_samples in [
-        ("train", neg_train_dir, len(train)),
-        ("validation", neg_val_dir, len(val)),
-        ("test", neg_test_dir, len(test))
-    ]:
-        os.makedirs(folder, exist_ok=True)
-        for i in range(num_samples):
-            neg_clip = neg_clips.pop() if neg_clips else None
-            if not neg_clip:
-                break
-
-            clip_full_path = os.path.join("./recordings/training_data", neg_clip)
-            if not os.path.exists(clip_full_path):
-                print(f"⚠️ Negative clip missing, skipping: {clip_full_path}")
-                continue
-
-            clip = AudioSegment.from_file(clip_full_path).set_channels(1).set_frame_rate(16000)
-            out_name = f"neg_{split_name}_{i:04d}.wav"
-            out_path = os.path.join(folder, out_name)
-            clip.export(out_path, format="wav")
-            generate_spectrogram(clip, out_path.replace('.wav', '.png'))
-            os.remove(out_path)  # 🔥 Remove wav, keep only png
-
-    conn.close()
-    print("\n🏁 Dataset preparation complete!")
+    neg_gen = NegativeClipGenerator(model_name=slug)  # slug matches your model folder name
+    neg_gen.run()
 
 if __name__ == "__main__":
     main()

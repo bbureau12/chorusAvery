@@ -64,11 +64,22 @@ class ChorusAveryLabeler:
         query = query.lower()
         return [(id_, name) for id_, name in items if query in name.lower()]
 
+    def delete_sidecar(self, clip_name):
+        sidecar_path = os.path.join(self.clips_folder, clip_name.replace(".wav", ".json"))
+
+        if os.path.exists(sidecar_path):
+            os.remove(sidecar_path)
+            print(f"🗑️ Also deleted sidecar JSON: {os.path.basename(sidecar_path)}")
+        else:
+            print("ℹ️ No sidecar JSON found to delete.")
+
+
     def save_labeled_clip(self, clip_name, full_path, labels, sound, boost):
         destination_path = os.path.join(self.save_folder, clip_name)
         os.makedirs(os.path.dirname(destination_path), exist_ok=True)
         shutil.move(full_path, destination_path)
         print(f"📦 Moved labeled file to: {destination_path}")
+        self.delete_sidecar(clip_name)
         max_dbfs, avg_dbfs = self.compute_db_stats(sound)
         print(f"🔊 Max dBFS: {max_dbfs:.2f} | Avg dBFS: {avg_dbfs:.2f}")
 
@@ -218,15 +229,36 @@ class ChorusAveryLabeler:
                 second_half = sound[midpoint:]
                 clip1 = f"{base}~1.wav"
                 clip2 = f"{base}~2.wav"
-                first_half.export(os.path.join(self.clips_folder, clip1), format="wav")
-                second_half.export(os.path.join(self.clips_folder, clip2), format="wav")
+                clip1_path = os.path.join(self.clips_folder, clip1)
+                clip2_path = os.path.join(self.clips_folder, clip2)
+                first_half.export(clip1_path, format="wav")
+                second_half.export(clip2_path, format="wav")
                 os.remove(full_path)
                 print(f"✂️ Split into: {clip1}, {clip2}")
+
+                # Optional: copy sidecar
+                original_json = os.path.join(self.clips_folder, clip_name.replace(".wav", ".json"))
+                if os.path.exists(original_json):
+                    shutil.copy(original_json, clip1_path.replace(".wav", ".json"))
+                    shutil.copy(original_json, clip2_path.replace(".wav", ".json"))
+                    print(f"📄 Duplicated sidecar JSON for split clips.")
+                else:
+                    print(f"ℹ️ No sidecar JSON found for original clip to copy.")
+
                 return 'split', [clip1, clip2]
             elif search == '*':
                 os.remove(full_path)
                 print(f"🗑️ Deleted {clip_name}.")
+
+                sidecar_path = os.path.join(self.clips_folder, clip_name.replace(".wav", ".json"))
+                if os.path.exists(sidecar_path):
+                    os.remove(sidecar_path)
+                    print(f"🗑️ Also deleted sidecar JSON: {os.path.basename(sidecar_path)}")
+                else:
+                    print("ℹ️ No sidecar JSON found to delete.")
+
                 return labels, names
+
             elif search == 'undo':
                 self.undo_last_label()
                 return labels, names
@@ -279,6 +311,11 @@ class ChorusAveryLabeler:
             os.makedirs(skip_folder, exist_ok=True)
             skip_path = os.path.join(skip_folder, clip_name)
             shutil.move(full_path, skip_path)
+            # Delete associated sidecar if present
+            sidecar_path = os.path.join(self.clips_folder, clip_name.replace(".wav", ".json"))
+            if os.path.exists(sidecar_path):
+                os.remove(sidecar_path)
+                print(f"🗑️ Also deleted sidecar JSON: {os.path.basename(sidecar_path)}")
             print(f"🚫 Moved unlabeled file to skip folder: {skip_path}")
 
             skip_files = sorted(

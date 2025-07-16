@@ -1,8 +1,7 @@
 import librosa
+import librosa.display
 from matplotlib import pyplot as plt
 import numpy as np
-import matplotlib
-matplotlib.use("Agg")
 
 # === Parameters centralization ===
 TARGET_SR = 16000
