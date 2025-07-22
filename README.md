@@ -31,3 +31,4 @@ MIT License. All recordings and data belong to their original recordists unless 
 ---
 
 🌲 Made with care by Beau and Sage.
+ env\Scripts\Activate.ps1 

@@ -94,26 +94,34 @@ def main():
     location_input = input("📍 Location IDs (comma-separated or * for all): ").strip()
     if location_input == "*":
         cursor.execute("""
-        SELECT Clips.clip_path FROM Clips
-        JOIN ClipAnnotations ca1 ON Clips.id = ca1.clip_id
-        WHERE ca1.species_id=?
-          AND NOT EXISTS (
-              SELECT 1 FROM ClipAnnotations ca2
-              WHERE ca2.clip_id=Clips.id
-                AND ca2.species_id != ?
-          )
-        """, (species_id,species_id,))
+            SELECT Clips.clip_path, COUNT(DISTINCT ca2.species_id) as species_count
+            FROM Clips
+            JOIN ClipAnnotations ca2 ON Clips.id = ca2.clip_id
+            GROUP BY Clips.id
+            HAVING SUM(ca2.species_id = ?) > 0
+        """, (species_id,))
     else:
         loc_ids = tuple(map(int, location_input.split(',')))
         placeholders = ','.join(['?']*len(loc_ids))
         cursor.execute(f"""
-            SELECT Clips.clip_path FROM Clips
-            JOIN ClipAnnotations ON Clips.id=ClipAnnotations.clip_id
-            JOIN SourceFiles ON Clips.source_id=SourceFiles.id
-            WHERE ClipAnnotations.species_id=? AND SourceFiles.LocationID IN ({placeholders})
-        """, (species_id, *loc_ids))
-    clips = [row[0] for row in cursor.fetchall()]
-    print(f"🎧 Found {len(clips)} clips for species '{species_name}'.")
+            SELECT Clips.clip_path, COUNT(DISTINCT ca2.species_id) as species_count
+            FROM Clips
+            JOIN ClipAnnotations ca2 ON Clips.id = ca2.clip_id
+            JOIN SourceFiles ON Clips.source_id = SourceFiles.id
+            WHERE SourceFiles.LocationID IN ({placeholders})
+            GROUP BY Clips.id
+            HAVING SUM(ca2.species_id = ?) > 0
+        """, (*loc_ids, species_id))
+
+    # === Common processing logic ===
+    all_results = cursor.fetchall()
+    random.shuffle(all_results)
+    solo_clips = [path for path, count in all_results if count == 1]
+    mixed_clips = [path for path, count in all_results if count > 1]
+    n_mixed = min(len(mixed_clips), len(solo_clips) // 4)
+    selected_mixed = random.sample(mixed_clips, n_mixed)
+    clips = solo_clips + selected_mixed
+    print(f"🎧 Using {len(solo_clips)} solo and {n_mixed} mixed clips. Total: {len(clips)}")
 
     noises = []
     for f in os.listdir("./recordings/augmentation_noise"):

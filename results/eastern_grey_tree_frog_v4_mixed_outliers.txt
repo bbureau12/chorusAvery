@@ -1,0 +1,13 @@
+./temp/eastern_grey_tree_frog_v4_mixed\250511_0419_22_34_37_2.png, Predicted: Negative, Confidence: 96.73%
+./temp/eastern_grey_tree_frog_v4_mixed\250511_0419_22_40_02_1.png, Predicted: Negative, Confidence: 99.95%
+./temp/eastern_grey_tree_frog_v4_mixed\250511_0419_22_40_02_2.png, Predicted: Negative, Confidence: 99.65%
+./temp/eastern_grey_tree_frog_v4_mixed\250511_0419_22_40_17_1.png, Predicted: Negative, Confidence: 99.78%
+./temp/eastern_grey_tree_frog_v4_mixed\250511_0419_22_40_17_2.png, Predicted: Negative, Confidence: 99.78%
+./temp/eastern_grey_tree_frog_v4_mixed\240506_0392_07_32_11.png, Predicted: Negative, Confidence: 73.53%
+./temp/eastern_grey_tree_frog_v4_mixed\240506_0392_07_32_56_1.png, Predicted: Negative, Confidence: 100.00%
+./temp/eastern_grey_tree_frog_v4_mixed\250513_0423_17_01_12_2.png, Predicted: Negative, Confidence: 90.28%
+./temp/eastern_grey_tree_frog_v4_mixed\250513_0424_19_14_25_2.png, Predicted: Negative, Confidence: 93.24%
+./temp/eastern_grey_tree_frog_v4_mixed\250513_0424_19_14_30_2.png, Predicted: Negative, Confidence: 90.09%
+./temp/eastern_grey_tree_frog_v4_mixed\250619_0503_00_03_48~1.png, Predicted: Negative, Confidence: 82.05%
+./temp/eastern_grey_tree_frog_v4_mixed\250619_0503_00_17_03~2.png, Predicted: Negative, Confidence: 52.49%
+./temp/eastern_grey_tree_frog_v4_mixed\250619_0503_21_00_58~2.png, Predicted: Negative, Confidence: 80.06%

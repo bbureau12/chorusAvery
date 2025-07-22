@@ -1,6 +1,6 @@
 import json
 import os
-def write_trainer_specs(IMAGE_SIZE, BATCH_SIZE, EPOCHS, history, class_names, best_epoch, best_val, results_dir):
+def write_trainer_specs(IMAGE_SIZE, BATCH_SIZE, EPOCHS, history, class_names, best_epoch, best_val, results_dir, species_name):
     results_summary = {
         'species': 'american_toad',
         'image_size': IMAGE_SIZE,

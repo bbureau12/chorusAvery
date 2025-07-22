@@ -259,7 +259,7 @@ def plot_roc_curves(y_true, y_prob, classes, ds_name):
 y_true_test, y_pred_test = evaluate_and_report(test_ds, "Test")
 
 # === Write result!
-write_trainer_specs(IMAGE_SIZE, BATCH_SIZE, EPOCHS, history, class_names, best_epoch, best_val, results_dir)
+write_trainer_specs(IMAGE_SIZE, BATCH_SIZE, EPOCHS, history, class_names, best_epoch, best_val, results_dir, species_name)
 # === Misclassification Tracker on TEST set
 print("\n🔍 Scanning TEST set for misclassified images...")
 test_root = os.path.join(DATA_DIR, 'test')
