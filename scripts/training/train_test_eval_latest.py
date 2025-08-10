@@ -43,12 +43,24 @@ species_dir = os.path.join(model_root, species_name)
 print(f"✅ Using dataset: {species_name}")
 
 # === 2️⃣ Get species ID ===
-train_subdirs = os.listdir(os.path.join(species_dir, 'train'))
+train_path = os.path.join(model_root, species_name, 'train')
+train_subdirs = sorted([
+    d for d in os.listdir(train_path)
+    if os.path.isdir(os.path.join(train_path, d))
+])
+
+# Prefer numeric species IDs if available
 species_ids = [d for d in train_subdirs if d.isdigit() and d != '0']
-if not species_ids:
-    raise RuntimeError("❌ Could not find numeric species ID in train folder!")
-species_id = species_ids[0]
-print(f"✅ Using species ID: {species_id}")
+
+if species_ids:
+    # Binary classification using numeric species ID
+    species_id = species_ids[0]
+    class_names = ['negative_0', f'species_{species_id}']
+    print(f"✅ Detected numeric species ID: {species_id}")
+else:
+    # Multi-class setup using folder names
+    class_names = train_subdirs
+    print(f"✅ Using folder names as class labels: {class_names}")
 
 # === 3️⃣ Find next model version ===
 existing_models = [
@@ -73,11 +85,11 @@ print(f"📁 Model will be saved as: {model_filename}")
 print(f"📂 Results will be saved in: {results_dir}")
 
 # === 5️⃣ Create class names including species_id ===
-class_names = [
-    f"{species_name}_{species_id}" if lbl == str(species_id) else f"negative_0"
-    for lbl in ['0', species_id]
-]
-print(f"✅ Class names set to: {class_names}")
+# class_names = [
+#     f"{species_name}_{species_id}" if lbl == str(species_id) else f"negative_0"
+#     for lbl in ['0', species_id]
+# ]
+# print(f"✅ Class names set to: {class_names}")
 
 # === Ensure model directory exists
 os.makedirs('./models', exist_ok=True)
@@ -131,45 +143,45 @@ else:
 train_ds, val_ds, test_ds = [ds.prefetch(AUTOTUNE) for ds in [train_ds, val_ds, test_ds]]
 
 # === Build model
-# model = models.Sequential([
-#     layers.Rescaling(1./255, input_shape=(224, 224, 3)),
-#     layers.Conv2D(32, 3, activation='relu', kernel_regularizer=regularizers.l2(0.002)),
-#     layers.MaxPooling2D(),
-#     layers.Dropout(0.25),
-#     layers.Conv2D(64, 3, activation='relu', kernel_regularizer=regularizers.l2(0.002)),
-#     layers.MaxPooling2D(),
-#     layers.Conv2D(128, 3, activation='relu', kernel_regularizer=regularizers.l2(0.002)),
-#     layers.MaxPooling2D(),
-#     layers.Conv2D(128, 3, activation='relu'),
-#     layers.GlobalAveragePooling2D(),
-#     layers.Dropout(0.4),
-#     layers.Dense(64, activation='relu'),
-#     layers.Dense(len(class_names), activation='softmax')
-# ])
 model = models.Sequential([
     layers.Rescaling(1./255, input_shape=(224, 224, 3)),
-    
-    layers.Conv2D(32, 3, activation='relu', kernel_regularizer=regularizers.l2(0.001)),
-    layers.BatchNormalization(),
+    layers.Conv2D(32, 3, activation='relu', kernel_regularizer=regularizers.l2(0.002)),
     layers.MaxPooling2D(),
     layers.Dropout(0.25),
-    
-    layers.Conv2D(64, 3, activation='relu', kernel_regularizer=regularizers.l2(0.001)),
-    layers.BatchNormalization(),
+    layers.Conv2D(64, 3, activation='relu', kernel_regularizer=regularizers.l2(0.002)),
     layers.MaxPooling2D(),
-    
-    layers.Conv2D(128, 3, activation='relu', kernel_regularizer=regularizers.l2(0.001)),
-    layers.BatchNormalization(),
+    layers.Conv2D(128, 3, activation='relu', kernel_regularizer=regularizers.l2(0.002)),
     layers.MaxPooling2D(),
-    
-    layers.Conv2D(256, 3, activation='relu'),
-    layers.BatchNormalization(),
-    
+    layers.Conv2D(128, 3, activation='relu'),
     layers.GlobalAveragePooling2D(),
-    layers.Dropout(0.5),
-    layers.Dense(128, activation='relu'),
+    layers.Dropout(0.4),
+    layers.Dense(64, activation='relu'),
     layers.Dense(len(class_names), activation='softmax')
 ])
+# model = models.Sequential([
+#     layers.Rescaling(1./255, input_shape=(224, 224, 3)),
+    
+#     layers.Conv2D(32, 3, activation='relu', kernel_regularizer=regularizers.l2(0.001)),
+#     layers.BatchNormalization(),
+#     layers.MaxPooling2D(),
+#     layers.Dropout(0.25),
+    
+#     layers.Conv2D(64, 3, activation='relu', kernel_regularizer=regularizers.l2(0.001)),
+#     layers.BatchNormalization(),
+#     layers.MaxPooling2D(),
+    
+#     layers.Conv2D(128, 3, activation='relu', kernel_regularizer=regularizers.l2(0.001)),
+#     layers.BatchNormalization(),
+#     layers.MaxPooling2D(),
+    
+#     layers.Conv2D(256, 3, activation='relu'),
+#     layers.BatchNormalization(),
+    
+#     layers.GlobalAveragePooling2D(),
+#     layers.Dropout(0.5),
+#     layers.Dense(128, activation='relu'),
+#     layers.Dense(len(class_names), activation='softmax')
+# ])
 
 
 model.compile(

@@ -20,16 +20,6 @@ def search_species(cursor, query):
     cursor.execute("SELECT id, name FROM Species")
     return [(id_, name) for id_, name in cursor.fetchall() if query.lower() in name.lower()]
 
-# def generate_spectrogram(audio, output_path):
-#     samples = np.array(audio.get_array_of_samples())
-#     freqs, times, Sxx = spectrogram(samples, fs=audio.frame_rate, nperseg=256)
-#     plt.figure(figsize=(2, 2))
-#     plt.pcolormesh(times, freqs, 10*np.log10(Sxx + 1e-10), shading='gouraud')
-#     plt.axis('off')
-#     plt.tight_layout(pad=0)
-#     plt.savefig(output_path, bbox_inches='tight', pad_inches=0)
-#     plt.close()
-
 def pad_audio(audio, pad_ms=500):
     silence_segment = AudioSegment.silent(duration=pad_ms)
     return random.choice([silence_segment + audio, audio + silence_segment])

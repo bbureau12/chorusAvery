@@ -2,7 +2,7 @@ import librosa
 import librosa.display
 from matplotlib import pyplot as plt
 import matplotlib
-matplotlib.use("Agg")
+#matplotlib.use("Agg")
 import numpy as np
 import cv2
 

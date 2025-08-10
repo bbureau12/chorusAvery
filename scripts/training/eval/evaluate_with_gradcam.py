@@ -146,4 +146,4 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--auto", action="store_true", help="Auto approve scores without prompt")
     args = parser.parse_args()
-    main(True)
+    main(False)

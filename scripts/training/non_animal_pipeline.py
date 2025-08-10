@@ -198,11 +198,14 @@ def main():
     print("✅ Positive samples processed.")
 
     # === Prepare negatives ===
-    total_pos = len(all_pos)
-    neg_target = total_pos * 3
-    comp_n = int(neg_target * 0.4)
-    min_n = int(neg_target * 0.1)
-    spc_n = int(neg_target * 0.5)
+    total_pos = len(all_pos)  # 48K spectrograms
+    neg_target = total_pos * 3  # 144K spectrograms desired
+    outputs_per_clip = 6  # Adjust if you change augmentations
+    neg_clip_target = neg_target // outputs_per_clip
+
+    comp_n = int(neg_clip_target * 0.4)
+    min_n = int(neg_clip_target * 0.1)
+    spc_n = int(neg_clip_target * 0.5)
 
     comp_samples = random.choices(comparable_paths, k=comp_n)
     min_samples = random.choices(minority_paths, k=min_n)

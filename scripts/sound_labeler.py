@@ -10,6 +10,8 @@ import json
 import re
 from scipy import signal
 import matplotlib.pyplot as plt
+from timezonefinder import TimezoneFinder
+import pytz
 
 class ChorusAveryLabeler:
     def __init__(self, db_path, clips_folder, save_folder, skip_file_limit=1500):
@@ -22,6 +24,7 @@ class ChorusAveryLabeler:
 
         self.conn = sqlite3.connect(db_path)
         self.cursor = self.conn.cursor()
+        self.tf = TimezoneFinder()
 
         self.species_list = self._fetch_list("Species")
         self.non_animal_list = self._fetch_list("NonAnimalSounds")
@@ -31,6 +34,16 @@ class ChorusAveryLabeler:
     def _fetch_list(self, table_name):
         self.cursor.execute(f"SELECT id, name FROM {table_name} ORDER BY name ASC")
         return self.cursor.fetchall()
+    
+    def get_timezone_for_location(self, cursor, location_id):
+        cursor.execute("SELECT latitude, longitude FROM Locations WHERE id = ?", (location_id,))
+        row = cursor.fetchone()
+        if row:
+            lat, lon = row
+            tz_name = self.tf.timezone_at(lng=lon, lat=lat)
+            if tz_name:
+                return pytz.timezone(tz_name)
+        return pytz.utc  # Fallback
 
     def extract_original_filename(self, clip_filename):
         match = re.match(r'^(\d{6}_\d{4})', clip_filename)
@@ -75,35 +88,61 @@ class ChorusAveryLabeler:
 
 
     def save_labeled_clip(self, clip_name, full_path, labels, sound, boost):
-        destination_path = os.path.join(self.save_folder, clip_name)
-        os.makedirs(os.path.dirname(destination_path), exist_ok=True)
-        shutil.move(full_path, destination_path)
-        print(f"📦 Moved labeled file to: {destination_path}")
         self.delete_sidecar(clip_name)
         max_dbfs, avg_dbfs = self.compute_db_stats(sound)
         print(f"🔊 Max dBFS: {max_dbfs:.2f} | Avg dBFS: {avg_dbfs:.2f}")
 
-        start_dt = self.parse_date_from_filename(clip_name) or datetime.datetime.now()
+        start_dt = self.parse_date_from_filename(clip_name)
+
         duration = len(sound) / 1000.0
         end_dt = start_dt + datetime.timedelta(seconds=duration)
 
-        try:
-            source_base = self.extract_original_filename(clip_name)
-            self.cursor.execute("SELECT id FROM SourceFiles WHERE filename LIKE ?", (f"{source_base}%",))
-            source_row = self.cursor.fetchone()
-            if not source_row:
-                raise ValueError(f"❌ No SourceFile found starting with: {source_base}")
-            source_id = source_row[0]
-        except Exception as e:
-            print(e)
+        year_folder = str(start_dt.year)
+        destination_dir = os.path.join(self.save_folder, year_folder)
+        os.makedirs(destination_dir, exist_ok=True)
+        destination_path = os.path.join(destination_dir, clip_name)
+        shutil.move(full_path, destination_path)
+        relative_clip_path = os.path.join(year_folder, clip_name)
+
+        # Get source file and location ID
+        source_base = self.extract_original_filename(clip_name)
+        self.cursor.execute("SELECT id, LocationID FROM SourceFiles WHERE filename LIKE ?", (f"{source_base}%",))
+        source_row = self.cursor.fetchone()
+        if not source_row:
+            print(f"❌ No SourceFile found starting with: {source_base}")
             return None
 
-        self.cursor.execute("""
-            INSERT INTO Clips (clip_path, start_time, end_time, source_id, start_date_source, end_date_source, max_dbfs, avg_dbfs, boost_db)
-            VALUES (?, 0, ?, ?, ?, ?, ?, ?, ?)
-        """, (clip_name, duration, source_id, start_dt, end_dt, max_dbfs, avg_dbfs, boost))
-        clip_id = self.cursor.lastrowid
+        source_id, location_id = source_row
 
+        # Auto-detect timezone
+        tz = self.get_timezone_for_location(self.cursor, location_id)
+        if start_dt.tzinfo is None:
+            start_dt = tz.localize(start_dt)
+        if end_dt.tzinfo is None:
+            end_dt = tz.localize(end_dt)
+
+        # Convert to UTC
+        start_dt_utc = start_dt.astimezone(pytz.utc)
+        end_dt_utc = end_dt.astimezone(pytz.utc)
+
+        source_base = self.extract_original_filename(clip_name)
+
+        self.cursor.execute("""
+            INSERT INTO Clips (
+                clip_path, start_time, end_time, source_id,
+                start_date_source, end_date_source,
+                start_date_utc, end_time_utc,
+                max_dbfs, avg_dbfs, boost_db
+            )
+            VALUES (?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            relative_clip_path, duration, source_id,
+            start_dt.isoformat(), end_dt.isoformat(),
+            start_dt_utc.isoformat(), end_dt_utc.isoformat(),
+            max_dbfs, avg_dbfs, boost
+        ))
+        clip_id = self.cursor.lastrowid
+        
         for id_, name in labels:
             is_species = (id_, name) in self.species_list
             self.cursor.execute("""

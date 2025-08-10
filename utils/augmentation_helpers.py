@@ -20,9 +20,10 @@ def polarize_volume(audio, target_dbfs, factor=1.3):
         return None
     return audio + adjustment
 
-def split_data(clips, train_ratio=0.7, val_ratio=0.2):
-    random.shuffle(clips)
-    total = len(clips)
-    train_end = int(train_ratio * total)
-    val_end = train_end + int(val_ratio * total)
-    return clips[:train_end], clips[train_end:val_end], clips[val_end:]
+def split_data(files, train_ratio=0.7, val_ratio=0.15):
+    random.shuffle(files)
+    total = len(files)
+    train = files[:int(total * train_ratio)]
+    val = files[int(total * train_ratio):int(total * (train_ratio + val_ratio))]
+    test = files[int(total * (train_ratio + val_ratio)):]
+    return train, val, test
