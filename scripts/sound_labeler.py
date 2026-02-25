@@ -31,6 +31,7 @@ class ChorusAveryLabeler:
 
         os.makedirs(self.clips_folder, exist_ok=True)
 
+
     def _fetch_list(self, table_name):
         self.cursor.execute(f"SELECT id, name FROM {table_name} ORDER BY name ASC")
         return self.cursor.fetchall()
@@ -47,6 +48,7 @@ class ChorusAveryLabeler:
 
     def extract_original_filename(self, clip_filename):
         match = re.match(r'^(\d{6}_\d{4})', clip_filename)
+
         if match:
             return match.group(1)
         raise ValueError(f"❌ Could not determine original file base from: {clip_filename}")
@@ -220,6 +222,7 @@ class ChorusAveryLabeler:
                 print(f"{idx + 1}. {name}")
             choice = input("Select number(s) separated by commas: ").strip()
             try:
+             
                 selected = [int(x) - 1 for x in choice.split(',')]
                 for s in selected:
                     if 0 <= s < len(matches) and matches[s] not in labels:

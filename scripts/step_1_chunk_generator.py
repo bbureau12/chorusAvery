@@ -86,3 +86,4 @@ for filename in os.listdir(RAW_FOLDER):
 
 conn.close()
 print("\n🏁 All files processed.")
+
