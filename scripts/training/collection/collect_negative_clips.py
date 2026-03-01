@@ -9,7 +9,7 @@ from utils.generate_spectogram import generate_mel_spectrogram
 
 class NegativeClipGenerator:
     def __init__(self, model_name,
-                 db_path="./db/chorusavery.db",
+                 db_path="./db/chorusAvery.db",
                  recordings_root="./recordings/training_data",
                  model_root="./recordings/model",
                  aug_folder="./recordings/augmentation_noise",

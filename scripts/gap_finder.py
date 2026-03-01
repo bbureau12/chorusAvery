@@ -1,7 +1,7 @@
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parent / "chorusAvery.db"
+DB_PATH = Path(__file__).resolve().parent.parent / "db" / "chorusAvery.db"
 
 def scan_and_insert_mystery_segments(source_file: str, min_confidence: float = 0.5, min_gap: float = 5.0):
     conn = sqlite3.connect(DB_PATH)

@@ -167,13 +167,15 @@
 import os
 import shutil
 import sqlite3
+from pathlib import Path
 
 # ---------------------------------
 # CONFIGURATION
 # ---------------------------------
 
-DB_PATH = r"D:\Projects\ChorusAvery\chorusAvery\db\chorusAvery.db"
-CLIPS_BASE_DIR = r"D:\Projects\ChorusAvery\chorusAvery\recordings\training_data"
+ROOT = Path(__file__).resolve().parent.parent
+DB_PATH = str(ROOT / "db" / "chorusAvery.db")
+CLIPS_BASE_DIR = str(ROOT / "recordings" / "training_data")
 OUTPUT_DIR = "dataset_cnn"   # root dataset folder
 
 # Optional cap per class to avoid explosion; set to None for unlimited

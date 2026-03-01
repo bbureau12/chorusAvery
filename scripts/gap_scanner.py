@@ -4,7 +4,7 @@ from pydub import AudioSegment
 import sqlite3
 
 # Configuration
-DB_PATH = Path(__file__).resolve().parent / "chorusAvery.db"
+DB_PATH = Path(__file__).resolve().parent.parent / "db" / "chorusAvery.db"
 MYSTERY_AUDIO_DIR = Path(__file__).resolve().parent / "data" / "mystery_audio"
 CLUSTER_OUTPUT_DIR = Path(__file__).resolve().parent / "data" / "mystery_clusters"
 CLUSTER_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)

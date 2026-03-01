@@ -1,7 +1,7 @@
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parent.parent / "chorusAvery.db"
+DB_PATH = Path(__file__).resolve().parent.parent / "db" / "chorusAvery.db"
 
 def sync_species_ids_from_codes():
     conn = sqlite3.connect(DB_PATH)

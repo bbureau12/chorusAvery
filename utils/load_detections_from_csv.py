@@ -1,9 +1,6 @@
 import csv
-import sqlite3
 from pathlib import Path
 from utils.db import get_db_connection
-
-DB_PATH = Path(__file__).resolve().parent.parent / "chorusAvery.db"
 
 def load_detections_from_csv(csv_path: Path, location_id: int):
     conn = get_db_connection()

@@ -1,44 +1,81 @@
-# 🐦 Chorus Avery - Setup Instructions
+﻿# Setup Guide
 
-Welcome to **Chorus Avery**, a project dedicated to listening to and identifying birdsong using BirdNET Analyzer and AI tools.
+This setup is for local development on Windows PowerShell, with notes for other platforms.
 
----
+## Prerequisites
 
-## 📦 Setup Instructions
+- Python 3.10+
+- FFmpeg available on PATH
+- Git
 
-### 1. Clone This Repository
-```bash
-git clone https://github.com/your-username/chorus-avery.git
-cd chorus-avery
+## 1. Clone and enter repository
+
+```powershell
+git clone https://github.com/bbureau12/chorusAvery.git
+cd chorusAvery
 ```
 
-### 2. Set Up a Python Virtual Environment
-```bash
-python -m venv env
-env\Scripts\activate
+## 2. Create and activate virtual environment
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+## 3. Install dependencies
+
+```powershell
 pip install -r requirements.txt
 ```
 
-### 3. Install FFmpeg (Required for Audio Processing)
-- Download from: https://www.gyan.dev/ffmpeg/builds/
-- Extract and add the `bin/` folder to your system PATH.
+## 4. Configure BirdNET Analyzer
 
-### 4. Set Up BirdNET Analyzer
-Inside this project, you’ll find a folder named `BirdNET-Analyzer/`. To activate BirdNET:
+Repository includes `BirdNET-Analyzer/`.
+Place required BirdNET model files in:
 
-- Download the latest model files from [BirdNET Cornell](https://birdnet.cornell.edu/)
-- Place them in:
-  ```
-  BirdNET-Analyzer/BirdNET_GLOBAL_MODEL/
-  ```
-  Required files:
-  - `model.tflite`
-  - `labels.txt`
-  - `metadata.json`
+`BirdNET-Analyzer/BirdNET_GLOBAL_MODEL/`
 
----
+Expected files:
+- `model.tflite`
+- `labels.txt`
+- `metadata.json`
 
-## ✅ You’re Ready!
-Drop `.wav` files into `recordings/raw/`, and run `scripts/run_birdnet.py` to analyze them.
+## 5. Verify key folders
 
-Happy listening! 🌲🐦
+Confirm these exist before running pipeline scripts:
+
+- `recordings/raw/`
+- `recordings/chunks/` (created by chunking workflow if missing)
+- `recordings/clips/` (created by clip extraction workflow if missing)
+- `models/`
+- `db/`
+
+## 6. Verify database path expectations
+
+Most scripts expect one of the following DB locations:
+
+- `./chorusAvery.db`
+- `./db/chorusAvery.db`
+
+If a script fails with missing DB, inspect that script's `DATABASE_PATH` constant and align it.
+
+## 7. Smoke test commands
+
+```powershell
+python scripts\step_1_chunk_generator.py
+python scripts\step_2_clip_parserv2.py
+python scripts\run_birdnet.py
+```
+
+## Troubleshooting
+
+- FFmpeg not found: install FFmpeg and restart shell.
+- Module import errors from sibling folders: run from repo root.
+- BirdNET model missing: verify files under `BirdNET-Analyzer/BirdNET_GLOBAL_MODEL/`.
+- SQLite errors: confirm DB file path and table availability.
+
+## Related Docs
+
+- [README.md](README.md)
+- [docs/PIPELINE.md](docs/PIPELINE.md)
+- [docs/RUNBOOK.md](docs/RUNBOOK.md)

@@ -146,7 +146,7 @@ def main():
     negatives_needed = positives * TARGET_MULTIPLIER
     print(f"➡️ Need ~{negatives_needed} negatives (3x positives).")
 
-    similar, other, non_animal = collect_clips_from_db("./chorusAvery.db", int(species_id), target_species_type_id)
+    similar, other, non_animal = collect_clips_from_db("./db/chorusAvery.db", int(species_id), target_species_type_id)
     augmentation_clips = load_augmentation_clips(AUG_FOLDER)
 
     # Combine negatives pool
