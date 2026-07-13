@@ -53,6 +53,7 @@ def apply_bandpass_filter(audio, lowcut=300, highcut=8000):
     filtered = filtered.low_pass_filter(highcut)
     return filtered
 
+
 # === MAIN SLICER ===
 def slice_audio_dynamic_threshold(file_path, apply_bandpass=False, lowcut=200, highcut=12000):
     base_name = os.path.splitext(os.path.basename(file_path))[0]
@@ -140,14 +141,18 @@ def slice_audio_dynamic_threshold(file_path, apply_bandpass=False, lowcut=200, h
         except Exception as e:
             print(f"⚠️ Could not plot: {e}")
 
-# === MAIN ===
-print("\n🔍 Scanning for chunks...")
-for filename in os.listdir(input_folder):
-    if filename.endswith('.wav'):
-        full_path = os.path.join(input_folder, filename)
-        print(f"\n🎧 Processing: {filename}")
-        slice_audio_dynamic_threshold(full_path, apply_bandpass=False)
-        os.remove(full_path)
-        print(f"🗑️ Deleted chunk: {filename}")
+def main():
+    print("\n🔍 Scanning for chunks...")
+    for filename in os.listdir(input_folder):
+        if filename.endswith('.wav'):
+            full_path = os.path.join(input_folder, filename)
+            print(f"\n🎧 Processing: {filename}")
+            slice_audio_dynamic_threshold(full_path, apply_bandpass=False)
+            os.remove(full_path)
+            print(f"🗑️ Deleted chunk: {filename}")
 
-print("\n🏁 All done!")
+    print("\n🏁 All done!")
+
+
+if __name__ == "__main__":
+    main()

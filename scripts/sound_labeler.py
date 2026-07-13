@@ -8,10 +8,22 @@ import simpleaudio as sa
 import datetime
 import json
 import re
+import sys
+from pathlib import Path
 from scipy import signal
 import matplotlib.pyplot as plt
 from timezonefinder import TimezoneFinder
 import pytz
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from utils.clip_export_config import (
+    configure_selected_species_export,
+    export_clip_if_selected,
+    load_session_config,
+)
 
 class ChorusAveryLabeler:
     def __init__(self, db_path, clips_folder, save_folder, skip_file_limit=1500):
@@ -28,6 +40,13 @@ class ChorusAveryLabeler:
 
         self.species_list = self._fetch_list("Species")
         self.non_animal_list = self._fetch_list("NonAnimalSounds")
+        self.clip_export_config = load_session_config()
+
+        if self.clip_export_config:
+            print(
+                "Selected-species exports will be copied to: "
+                f"{self.clip_export_config['export_directory']}"
+            )
 
         os.makedirs(self.clips_folder, exist_ok=True)
 
@@ -157,6 +176,19 @@ class ChorusAveryLabeler:
             ))
 
         self.conn.commit()
+
+        try:
+            exported_path = export_clip_if_selected(
+                destination_path,
+                labels,
+                self.species_list,
+                self.clip_export_config,
+            )
+            if exported_path:
+                print(f"Exported selected-species clip: {exported_path}")
+        except OSError as e:
+            print(f"Could not export selected-species clip: {e}")
+
         return clip_id
 
     def undo_last_label(self):
@@ -404,6 +436,7 @@ class ChorusAveryLabeler:
         print("\n🏁 All clips labeled.")
 
 if __name__ == "__main__":
+    configure_selected_species_export('./db/chorusAvery.db')
     labeler = ChorusAveryLabeler(
         db_path='./db/chorusAvery.db',
         clips_folder='./recordings/clips',
